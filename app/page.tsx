@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-const API_PACK = "/api/pack";
+// 本番: Render のバックエンド URL を NEXT_PUBLIC_API_URL に設定（末尾スラッシュなし）
+const API_BASE = typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "") : (process.env.NEXT_PUBLIC_API_URL ?? "");
+const API_PACK = `${API_BASE}/api/pack`;
+const API_DIAGRAM_HTML = `${API_BASE}/api/diagram/html`;
 
 type PartPlacement = { n: string; x: number; y: number; w: number; h: number };
 type Row = { y: number; h: number; parts: PartPlacement[] };
@@ -106,7 +109,7 @@ function LumberDiagram({
 }
 
 async function downloadPrintHtml(result: PackResult) {
-  const res = await fetch("/api/diagram/html", {
+  const res = await fetch(API_DIAGRAM_HTML, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
