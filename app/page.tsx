@@ -7,6 +7,24 @@ const API_BASE = typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_API_UR
 const API_PACK = `${API_BASE}/api/pack`;
 const API_DIAGRAM_HTML = `${API_BASE}/api/diagram/html`;
 
+/** タイムアウト付き fetch（Render のコールドスタートで数十秒かかることがあるため 90 秒） */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs = 90000
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: ctrl.signal });
+    clearTimeout(id);
+    return res;
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+}
+
 type PartPlacement = { n: string; x: number; y: number; w: number; h: number };
 type Row = { y: number; h: number; parts: PartPlacement[] };
 type Sheet = { id: number; rows: Row[] };
@@ -109,16 +127,20 @@ function LumberDiagram({
 }
 
 async function downloadPrintHtml(result: PackResult) {
-  const res = await fetch(API_DIAGRAM_HTML, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      label: result.label,
-      vw: result.vw,
-      vh: result.vh,
-      sheets: result.sheets,
-    }),
-  });
+  const res = await fetchWithTimeout(
+    API_DIAGRAM_HTML,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        label: result.label,
+        vw: result.vw,
+        vh: result.vh,
+        sheets: result.sheets,
+      }),
+    },
+    60000
+  );
   if (!res.ok) throw new Error("Failed to generate print HTML");
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -250,17 +272,21 @@ export default function Home() {
     try {
       const results: PackResult[] = [];
       for (const { vw, vh, label } of modes) {
-        const res = await fetch(API_PACK, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            parts,
-            vw,
-            vh,
-            kerf: Number(kerf),
-            label,
-          }),
-        });
+        const res = await fetchWithTimeout(
+          API_PACK,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              parts,
+              vw,
+              vh,
+              kerf: Number(kerf),
+              label,
+            }),
+          },
+          90000
+        );
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         results.push(await res.json());
       }
@@ -280,7 +306,14 @@ export default function Home() {
           });
       setResult(best);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "通信エラー");
+      const msg = e instanceof Error ? e.message : "通信エラー";
+      if (msg === "Failed to fetch" || msg.includes("fetch")) {
+        setError(
+          "接続できません。バックエンドの URL（NEXT_PUBLIC_API_URL）と CORS 設定を確認するか、Render の起動待ち（数十秒）後に再試行してください。"
+        );
+      } else {
+        setError(msg);
+      }
       setResult(null);
     } finally {
       setLoading(false);
