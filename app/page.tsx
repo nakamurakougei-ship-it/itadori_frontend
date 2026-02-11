@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 // 本番: Render のバックエンド URL を NEXT_PUBLIC_API_URL に設定（末尾スラッシュなし）
 const API_BASE = typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "") : (process.env.NEXT_PUBLIC_API_URL ?? "");
 const API_PACK = `${API_BASE}/api/pack`;
+const API_PACK_AUTO = `${API_BASE}/api/pack_auto`;
 const API_DIAGRAM_HTML = `${API_BASE}/api/diagram/html`;
 
 /** タイムアウト付き fetch（Render のコールドスタートで数十秒かかることがあるため 90 秒） */
@@ -28,14 +29,16 @@ async function fetchWithTimeout(
 type PartPlacement = { n: string; x: number; y: number; w: number; h: number };
 type Row = { y: number; h: number; parts: PartPlacement[] };
 type Sheet = { id: number; rows: Row[] };
+/** 混在結果では各 sheet に vw, vh, label が付く */
+type SheetWithSize = Sheet & { vw?: number; vh?: number; label?: string };
 type PackResult = {
-  label: string;
-  vw: number;
-  vh: number;
+  label?: string;
+  vw?: number;
+  vh?: number;
   sheet_count: number;
   total_parts_placed: number;
   total_parts_requested: number;
-  sheets: Sheet[];
+  sheets: SheetWithSize[];
 };
 
 type ShelfRow = { id: number; name: string; w: number; d: number; qty: number };
@@ -127,15 +130,16 @@ function LumberDiagram({
 }
 
 async function downloadPrintHtml(result: PackResult) {
+  const first = result.sheets[0] as SheetWithSize | undefined;
   const res = await fetchWithTimeout(
     API_DIAGRAM_HTML,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        label: result.label,
-        vw: result.vw,
-        vh: result.vh,
+        label: result.label ?? first?.label ?? "板",
+        vw: result.vw ?? first?.vw ?? 0,
+        vh: result.vh ?? first?.vh ?? 0,
         sheets: result.sheets,
       }),
     },
@@ -257,54 +261,56 @@ export default function Home() {
     const [v48L, v48H] = asLongShort(v48, h48);
     const [lamL_, lamW_] = asLongShort(lamL, lamW);
 
-    const modes: { vw: number; vh: number; label: string }[] = [];
-    if (sizeChoice === "自動選定 (効率優先)") {
-      modes.push({ vw: v36L, vh: v36H, label: "3x6" });
-      modes.push({ vw: v48L, vh: v48H, label: "4x8" });
-    } else if (sizeChoice === "3x6固定") {
-      modes.push({ vw: v36L, vh: v36H, label: "3x6" });
-    } else if (sizeChoice === "4x8固定") {
-      modes.push({ vw: v48L, vh: v48H, label: "4x8" });
-    } else {
-      modes.push({ vw: lamL_, vh: lamW_, label: "集成材" });
-    }
-
     try {
-      const results: PackResult[] = [];
-      for (const { vw, vh, label } of modes) {
+      if (sizeChoice === "自動選定 (効率優先)") {
         const res = await fetchWithTimeout(
-          API_PACK,
+          API_PACK_AUTO,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               parts,
-              vw,
-              vh,
+              vw36: v36L,
+              vh36: v36H,
+              vw48: v48L,
+              vh48: v48H,
               kerf: Number(kerf),
-              label,
             }),
           },
           90000
         );
         if (!res.ok) throw new Error(`API error: ${res.status}`);
-        results.push(await res.json());
+        const data = await res.json();
+        setResult(data);
+        return;
       }
-      const nReq = parts.length;
-      const best = results.length === 1
-        ? results[0]
-        : results.reduce((a, b) => {
-            // 効率優先: 全配置 → 多く配置 → 総使用面積が小さい → 枚数が少ない
-            const totalArea = (r: PackResult) => r.vw * r.vh * r.sheet_count;
-            const score = (r: PackResult) => [
-              r.total_parts_placed === nReq ? 0 : 1,
-              -r.total_parts_placed,
-              totalArea(r),
-              r.sheet_count,
-            ];
-            return score(a).join(",") <= score(b).join(",") ? a : b;
-          });
-      setResult(best);
+
+      const modes: { vw: number; vh: number; label: string }[] = [];
+      if (sizeChoice === "3x6固定") {
+        modes.push({ vw: v36L, vh: v36H, label: "3x6" });
+      } else if (sizeChoice === "4x8固定") {
+        modes.push({ vw: v48L, vh: v48H, label: "4x8" });
+      } else {
+        modes.push({ vw: lamL_, vh: lamW_, label: "集成材" });
+      }
+
+      const res = await fetchWithTimeout(
+        API_PACK,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parts,
+            vw: modes[0].vw,
+            vh: modes[0].vh,
+            kerf: Number(kerf),
+            label: modes[0].label,
+          }),
+        },
+        90000
+      );
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      setResult(await res.json());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "通信エラー";
       if (msg === "Failed to fetch" || msg.includes("fetch")) {
@@ -538,8 +544,15 @@ export default function Home() {
             <>
               <div className="mb-3 rounded-lg border border-green-700/40 bg-green-50/90 px-4 py-2">
                 <p className="font-semibold text-green-800">
-                  💡 木取り完了：<strong>{result.label}板</strong> を{" "}
-                  <strong>{result.sheet_count}枚</strong> 使用し、{" "}
+                  💡 木取り完了：{(() => {
+                    const n36 = result.sheets.filter((s) => (s as SheetWithSize).label === "3x6").length;
+                    const n48 = result.sheets.filter((s) => (s as SheetWithSize).label === "4x8").length;
+                    if (n36 > 0 && n48 > 0) {
+                      return <><strong>3x6を{n36}枚</strong>、<strong>4x8を{n48}枚</strong> 使用し、</>;
+                    }
+                    const lab = result.label ?? (result.sheets[0] as SheetWithSize)?.label ?? "板";
+                    return <><strong>{lab}板</strong> を <strong>{result.sheet_count}枚</strong> 使用し、</>;
+                  })()}{" "}
                   <strong>{result.total_parts_placed}個</strong> の部品を配置しました。
                 </p>
                 {result.total_parts_requested > 0 &&
@@ -558,9 +571,9 @@ export default function Home() {
                   <LumberDiagram
                     key={sheet.id}
                     sheet={sheet}
-                    vw={result.vw}
-                    vh={result.vh}
-                    label={result.label}
+                    vw={(sheet as SheetWithSize).vw ?? result.vw ?? 0}
+                    vh={(sheet as SheetWithSize).vh ?? result.vh ?? 0}
+                    label={(sheet as SheetWithSize).label ?? result.label ?? "板"}
                   />
                 ))}
               </div>
