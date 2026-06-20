@@ -3,6 +3,9 @@ web/node_modules/
 web/.next/
 web/out/
 web/.vercel/
+node_modules/
+.next/
+out/
 
 # Python
 __pycache__/
