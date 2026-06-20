@@ -10,19 +10,24 @@ export interface PlacedPart {
   y: number;
   w: number;
   h: number;
+  /** 板内の裁断順（1始まり） */
+  seq: number;
 }
 
-export interface SheetRow {
+export interface Rect {
+  x: number;
   y: number;
+  w: number;
   h: number;
-  used_w: number;
-  parts: PlacedPart[];
 }
 
 export interface Sheet {
   id: number;
-  used_h: number;
-  rows: SheetRow[];
+  parts: PlacedPart[];
+  /** 配置後に残った端材領域（一定サイズ以上） */
+  wasteRects: Rect[];
+  /** この板の歩留まり (%) */
+  utilization: number;
 }
 
 export interface PackResult {
@@ -34,6 +39,10 @@ export interface PackResult {
   score: number;
   total_parts_placed: number;
   total_parts_requested: number;
+  /** 全体の歩留まり (%) */
+  utilization_pct: number;
+  /** 端材面積の合計 (mm²) */
+  waste_area_mm2: number;
 }
 
 export interface ShelfRow {

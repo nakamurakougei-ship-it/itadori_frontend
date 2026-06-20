@@ -264,6 +264,20 @@ input[type="text"] {
   margin-bottom: 0;
 }
 
+.diagram-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.diagram-svg-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+}
+
 .diagram-svg {
   width: 100%;
   height: auto;

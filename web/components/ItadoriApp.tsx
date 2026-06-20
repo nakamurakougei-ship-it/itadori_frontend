@@ -7,7 +7,9 @@ import {
   TrunkTechEngine,
   asLongShort,
   buildAllParts,
+  calcPackStats,
 } from "@/lib/trunkTechEngine";
+import { pickBestPackResult } from "@/lib/selectBest";
 import type { PackResult, ShelfRow, SizeChoice } from "@/lib/types";
 
 const DEFAULT_SHELF: ShelfRow[] = [
@@ -88,6 +90,7 @@ export default function ItadoriApp() {
 
     let testModes: [number, number, string][];
     if (sizeChoice.includes("自動")) {
+      // 3×6 を先に試算（小さい定尺で収まるかを優先して比較）
       testModes = [s36Dim, s48Dim];
     } else if (sizeChoice.includes("3x6")) {
       testModes = [s36Dim];
@@ -100,11 +103,9 @@ export default function ItadoriApp() {
     const nRequested = allParts.length;
     const simResults: PackResult[] = testModes.map(([vw, vh, label]) => {
       const sheets = engine.packSheets(allParts, vw, vh);
-      const totalPlaced = sheets.reduce(
-        (sum, s) => sum + s.rows.reduce((rs, r) => rs + r.parts.length, 0),
-        0
-      );
+      const totalPlaced = sheets.reduce((sum, s) => sum + s.parts.length, 0);
       const totalArea = sheets.length * (vw * vh);
+      const stats = calcPackStats(sheets, vw, vh);
       return {
         label,
         sheets,
@@ -114,41 +115,25 @@ export default function ItadoriApp() {
         score: totalArea,
         total_parts_placed: totalPlaced,
         total_parts_requested: nRequested,
+        utilization_pct: stats.utilization_pct,
+        waste_area_mm2: stats.waste_area_mm2,
       };
     });
 
-    const rank = (x: PackResult) =>
-      [
-        x.total_parts_placed === nRequested ? 0 : 1,
-        -x.total_parts_placed,
-        x.sheet_count,
-        x.score,
-      ] as const;
-
-    const best = simResults.reduce((a, b) => {
-      const ka = rank(a);
-      const kb = rank(b);
-      for (let i = 0; i < ka.length; i++) {
-        if (ka[i] < kb[i]) return a;
-        if (ka[i] > kb[i]) return b;
-      }
-      return a;
-    });
+    const best = pickBestPackResult(simResults, nRequested);
 
     setResult(best);
   };
-
-  const vwFull = result ? result.vw + 2 : 0;
-  const vhFull = result ? result.vh + 2 : 0;
 
   const diagramList = result ? (
     result.sheets.map((s) => (
       <div key={s.id} className="diagram-card">
         <DiagramSvg
           sheet={s}
-          vwFull={vwFull}
-          vhFull={vhFull}
+          vw={result.vw}
+          vh={result.vh}
           label={result.label}
+          kerf={kerf}
         />
       </div>
     ))
@@ -361,6 +346,11 @@ export default function ItadoriApp() {
                 💡 木取り完了：<strong>{result.label}板</strong> を{" "}
                 <strong>{result.sheet_count}枚</strong> 使用し、
                 <strong>{result.total_parts_placed}個</strong> の部品を配置しました。
+                <br />
+                歩留まり <strong>{result.utilization_pct}%</strong>
+                {result.waste_area_mm2 > 0 && (
+                  <>（端材 約 {Math.round(result.waste_area_mm2 / 1e6 * 10) / 10} m²）</>
+                )}
               </div>
               {result.total_parts_requested > 0 &&
                 result.total_parts_placed < result.total_parts_requested && (
@@ -371,7 +361,7 @@ export default function ItadoriApp() {
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => downloadPrintHtml(result)}
+                onClick={() => downloadPrintHtml(result, kerf)}
               >
                 🖨️ 木取図を印刷用にダウンロード（A4）
               </button>
