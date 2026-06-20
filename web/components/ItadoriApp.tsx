@@ -7,8 +7,9 @@ import {
   TrunkTechEngine,
   asLongShort,
   buildAllParts,
-  calcPackStats,
 } from "@/lib/trunkTechEngine";
+import { buildPackResult, formatBoardSummary } from "@/lib/packResult";
+import { tryPackMixed36And48 } from "@/lib/mixedPack";
 import { pickBestPackResult } from "@/lib/selectBest";
 import type { PackResult, ShelfRow, SizeChoice } from "@/lib/types";
 
@@ -88,37 +89,34 @@ export default function ItadoriApp() {
     const s48Dim = asLongShort(v48, h48, "4x8");
     const sLamDim = asLongShort(lamL, lamW, "集成材");
 
-    let testModes: [number, number, string][];
-    if (sizeChoice.includes("自動")) {
-      // 3×6 を先に試算（小さい定尺で収まるかを優先して比較）
-      testModes = [s36Dim, s48Dim];
-    } else if (sizeChoice.includes("3x6")) {
-      testModes = [s36Dim];
-    } else if (sizeChoice.includes("4x8")) {
-      testModes = [s48Dim];
-    } else {
-      testModes = [sLamDim];
-    }
-
     const nRequested = allParts.length;
-    const simResults: PackResult[] = testModes.map(([vw, vh, label]) => {
-      const sheets = engine.packSheets(allParts, vw, vh);
-      const totalPlaced = sheets.reduce((sum, s) => sum + s.parts.length, 0);
-      const totalArea = sheets.length * (vw * vh);
-      const stats = calcPackStats(sheets, vw, vh);
-      return {
-        label,
-        sheets,
-        sheet_count: sheets.length,
-        vw,
-        vh,
-        score: totalArea,
-        total_parts_placed: totalPlaced,
-        total_parts_requested: nRequested,
-        utilization_pct: stats.utilization_pct,
-        waste_area_mm2: stats.waste_area_mm2,
-      };
-    });
+    const simResults: PackResult[] = [];
+
+    const runSingle = (vw: number, vh: number, label: string) => {
+      const sheets = engine.packSheets(allParts, vw, vh, label);
+      simResults.push(
+        buildPackResult(sheets, label, false, vw, vh, nRequested)
+      );
+    };
+
+    if (sizeChoice.includes("自動")) {
+      runSingle(s36Dim[0], s36Dim[1], s36Dim[2]);
+      runSingle(s48Dim[0], s48Dim[1], s48Dim[2]);
+      const mixed = tryPackMixed36And48(
+        engine,
+        allParts,
+        s36Dim,
+        s48Dim,
+        nRequested
+      );
+      if (mixed) simResults.push(mixed);
+    } else if (sizeChoice.includes("3x6")) {
+      runSingle(s36Dim[0], s36Dim[1], s36Dim[2]);
+    } else if (sizeChoice.includes("4x8")) {
+      runSingle(s48Dim[0], s48Dim[1], s48Dim[2]);
+    } else {
+      runSingle(sLamDim[0], sLamDim[1], sLamDim[2]);
+    }
 
     const best = pickBestPackResult(simResults, nRequested);
 
@@ -130,9 +128,9 @@ export default function ItadoriApp() {
       <div key={s.id} className="diagram-card">
         <DiagramSvg
           sheet={s}
-          vw={result.vw}
-          vh={result.vh}
-          label={result.label}
+          vw={s.vw ?? result.vw}
+          vh={s.vh ?? result.vh}
+          label={s.boardLabel ?? result.label}
           kerf={kerf}
         />
       </div>
@@ -145,7 +143,9 @@ export default function ItadoriApp() {
         <span className="title-main">イタドリ</span>
         <span className="powered-badge">Powered by TrunkTechEngine</span>
       </div>
-      <p className="lead">定尺板から効率よく木取りを行うためのアプリです。</p>
+      <p className="lead">
+        定尺板から効率よく木取りを行うためのアプリです。同寸法は同じ板から、行割り（定規固定）で取ります。
+      </p>
 
       <div className="main-layout">
         <div className="main-column">
@@ -343,8 +343,7 @@ export default function ItadoriApp() {
           {result && (
             <>
               <div className="alert alert-success">
-                💡 木取り完了：<strong>{result.label}板</strong> を{" "}
-                <strong>{result.sheet_count}枚</strong> 使用し、
+                💡 木取り完了：<strong>{formatBoardSummary(result)}</strong> を使用し、
                 <strong>{result.total_parts_placed}個</strong> の部品を配置しました。
                 <br />
                 歩留まり <strong>{result.utilization_pct}%</strong>
@@ -352,6 +351,11 @@ export default function ItadoriApp() {
                   <>（端材 約 {Math.round(result.waste_area_mm2 / 1e6 * 10) / 10} m²）</>
                 )}
               </div>
+              {result.sheets.some((s) => s.merged) && (
+                <div className="alert alert-success" style={{ marginTop: "0.5rem" }}>
+                  ♻️ 端材統合: 尻板同士を1枚にまとめました（混載板あり）
+                </div>
+              )}
               {result.total_parts_requested > 0 &&
                 result.total_parts_placed < result.total_parts_requested && (
                   <div className="alert alert-warning">

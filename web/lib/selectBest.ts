@@ -2,9 +2,10 @@ import type { PackResult } from "./types";
 
 /** 板サイズの優先度（同条件なら小さい定尺を選ぶ） */
 function labelBias(label: string): number {
-  if (label === "3x6") return 0;
-  if (label === "4x8") return 1;
-  return 2;
+  if (label.startsWith("混在")) return 0;
+  if (label === "3x6") return 1;
+  if (label === "4x8") return 2;
+  return 3;
 }
 
 /**

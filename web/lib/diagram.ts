@@ -116,6 +116,23 @@ export function buildDiagramSvg({
   }
 
   const utilLabel = `${sheet.utilization.toFixed(1)}%`;
+  const groupLine = sheet.merged
+    ? `混載（端材統合）${sheet.groupSize ? " " + sheet.groupSize + "mm" : ""}`
+    : sheet.groupSize
+      ? `部材 ${sheet.groupSize}mm（同寸法${sheet.groupSheetIndex ? ` ${sheet.groupSheetIndex}枚目` : ""}）`
+      : "";
+
+  // 行割り定規線（板幅いっぱいの水平裁断線）
+  const rowYs = new Map<number, number>();
+  for (const p of sheet.parts) {
+    rowYs.set(p.y, p.h);
+  }
+  let rowCutSvg = "";
+  for (const [ry, rh] of rowYs) {
+    const bottomY = toSvgY(ry, rh) + rh;
+    rowCutSvg += `<line x1="${ox}" y1="${bottomY}" x2="${ox + vw}" y2="${bottomY}" stroke="#2980b9" stroke-width="1.5" opacity="0.75"/>`;
+    rowCutSvg += `<text x="${ox + vw + 4}" y="${bottomY + 3}" font-size="8" fill="#2980b9">定規</text>`;
+  }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalW} ${totalH}" width="${totalW}" height="${totalH}">
@@ -133,7 +150,7 @@ export function buildDiagramSvg({
     木取図 No.${sheet.id}　${escapeXml(label)}　${Math.round(boardW)}×${Math.round(boardH)}mm
   </text>
   <text x="${totalW / 2}" y="34" text-anchor="middle" font-size="10" fill="${COLORS.dim}">
-    歩留まり ${utilLabel}　刃厚 ${kerf}mm　※長手方向 →
+    ${groupLine ? escapeXml(groupLine) + "　" : ""}歩留まり ${utilLabel}　刃厚 ${kerf}mm　長手 →
   </text>
 
   <!-- 定尺板 -->
@@ -147,6 +164,7 @@ export function buildDiagramSvg({
 
   ${wasteSvg}
   ${partsSvg}
+  ${rowCutSvg}
 
   <!-- 外形寸法 -->
   ${dimLine(padL, padT, padL + boardW, padT, `${Math.round(boardW)}`, -14, true)}
@@ -158,8 +176,10 @@ export function buildDiagramSvg({
     <text x="14" y="9" font-size="8" fill="${COLORS.dim}">部材</text>
     <rect x="50" y="0" width="10" height="10" fill="url(#wasteHatch)" stroke="${COLORS.wasteStroke}" stroke-width="0.5"/>
     <text x="64" y="9" font-size="8" fill="${COLORS.dim}">端材</text>
-    <line x1="100" y1="5" x2="118" y2="5" stroke="${COLORS.cutLine}" stroke-width="1" stroke-dasharray="3,2"/>
-    <text x="122" y="9" font-size="8" fill="${COLORS.dim}">裁断線</text>
+    <line x1="100" y1="5" x2="118" y2="5" stroke="#2980b9" stroke-width="1.5"/>
+    <text x="122" y="9" font-size="8" fill="${COLORS.dim}">定規線</text>
+    <line x1="165" y1="5" x2="183" y2="5" stroke="${COLORS.cutLine}" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="187" y="9" font-size="8" fill="${COLORS.dim}">裁断線</text>
     <circle cx="175" cy="5" r="5" fill="${COLORS.badge}"/>
     <text x="184" y="9" font-size="8" fill="${COLORS.dim}">裁断順</text>
   </g>

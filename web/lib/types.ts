@@ -24,25 +24,34 @@ export interface Rect {
 export interface Sheet {
   id: number;
   parts: PlacedPart[];
-  /** 配置後に残った端材領域（一定サイズ以上） */
   wasteRects: Rect[];
-  /** この板の歩留まり (%) */
   utilization: number;
+  /** 同寸法グループ（例: 900×450）— 1板1寸法 */
+  groupSize?: string;
+  /** 同寸法グループ内の連番（例: 2枚目/3枚） */
+  groupSheetIndex?: number;
+  /** 端材統合で複数種を混載した板 */
+  merged?: boolean;
+  /** この板の定尺（混在時は板ごとに異なる） */
+  boardLabel?: string;
+  vw?: number;
+  vh?: number;
 }
 
 export interface PackResult {
   label: string;
   sheets: Sheet[];
   sheet_count: number;
+  /** 単一サイズ時の代表寸法（混在時は 3×6 側） */
   vw: number;
   vh: number;
   score: number;
   total_parts_placed: number;
   total_parts_requested: number;
-  /** 全体の歩留まり (%) */
   utilization_pct: number;
-  /** 端材面積の合計 (mm²) */
   waste_area_mm2: number;
+  /** 3×6 と 4×8 の混在 */
+  mixed?: boolean;
 }
 
 export interface ShelfRow {

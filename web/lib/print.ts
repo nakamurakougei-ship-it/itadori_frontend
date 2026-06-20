@@ -7,7 +7,15 @@ export function buildPrintHtml(
   maxPerPage?: number
 ): string {
   const images = best.sheets.map((s) =>
-    diagramToDataUrl(buildDiagramSvg({ sheet: s, vw: best.vw, vh: best.vh, label: best.label, kerf }))
+    diagramToDataUrl(
+      buildDiagramSvg({
+        sheet: s,
+        vw: s.vw ?? best.vw,
+        vh: s.vh ?? best.vh,
+        label: s.boardLabel ?? best.label,
+        kerf,
+      })
+    )
   );
 
   const chunk = maxPerPage != null && maxPerPage >= 1 ? maxPerPage : 1;
