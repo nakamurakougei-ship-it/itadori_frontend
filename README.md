@@ -33,14 +33,6 @@ http://localhost:3000 で開けます。
 4. Framework Preset は **Next.js**（自動検出）
 5. Deploy
 
-CLI からデプロイする場合:
-
-```bash
-cd web
-npm i -g vercel
-vercel
-```
-
 ### 静的アセット（任意）
 
 | ファイル | 配置先 | 用途 |
