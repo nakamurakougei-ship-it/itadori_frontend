@@ -1,0 +1,16 @@
+# Vercel / Next.js (web/)
+web/node_modules/
+web/.next/
+web/out/
+web/.vercel/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 共通
+*.log
+.env*.local
+.DS_Store

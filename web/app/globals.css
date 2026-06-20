@@ -1,0 +1,321 @@
+:root {
+  --panel-bg: rgba(255, 255, 255, 0.88);
+  --border: #d0d0d0;
+  --accent: #8b4513;
+  --wood: #deb887;
+  --sheet-bg: #fdf5e6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: "IPAexGothic", "Noto Sans JP", "Hiragino Sans", "Yu Gothic",
+    "Meiryo", sans-serif;
+  color: #111;
+}
+
+body {
+  background-image: url("/itadori.jpg");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+/* 背景画像が無い場合のフォールバック */
+body.no-bg {
+  background: linear-gradient(135deg, #e8f4e8 0%, #f5f0e6 100%);
+}
+
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.title-with-badge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.title-main {
+  font-size: 2.25rem;
+  font-weight: 700;
+}
+
+.powered-badge {
+  font-size: 0.65rem;
+  font-weight: normal;
+  color: #fff;
+  background-color: #333;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.lead {
+  margin: 0 0 1.5rem;
+  font-weight: 500;
+}
+
+.main-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 500px) 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.panel h2,
+.panel h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.panel p {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.dim-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.dim-row label {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+input[type="number"],
+input[type="text"] {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.field {
+  margin-bottom: 0.75rem;
+}
+
+.field label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 0.25rem;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1rem 0;
+}
+
+.shelf-table-wrap {
+  overflow-x: auto;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+.shelf-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.shelf-table th,
+.shelf-table td {
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.shelf-table th {
+  background: #f5f5f5;
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+.shelf-table td input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  min-width: 60px;
+  padding: 0.2rem;
+}
+
+.shelf-table td input:focus {
+  outline: 2px solid #4a90d9;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.btn {
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-primary {
+  background: #2d6a4f;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #1b4332;
+}
+
+.btn-secondary {
+  background: #444;
+  color: #fff;
+}
+
+.btn-secondary:hover {
+  background: #222;
+}
+
+.btn-ghost {
+  background: #fff;
+  color: #333;
+  border: 1px solid var(--border);
+  width: auto;
+}
+
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin: 0.75rem 0;
+  font-weight: 500;
+}
+
+.alert-success {
+  background: #d8f3dc;
+  border: 1px solid #95d5b2;
+}
+
+.alert-warning {
+  background: #fff3cd;
+  border: 1px solid #ffda6a;
+}
+
+.diagram-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.diagram-panel h2 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.diagram-card {
+  margin-bottom: 1.25rem;
+}
+
+.diagram-card:last-child {
+  margin-bottom: 0;
+}
+
+.diagram-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--sheet-bg);
+}
+
+.diagram-title {
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 0.35rem;
+}
+
+.mobile-diagrams {
+  display: none;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .desktop-diagrams {
+    display: none;
+  }
+
+  .mobile-diagrams {
+    display: block;
+  }
+
+  .page {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .title-main {
+    font-size: 1.75rem;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-diagrams {
+    display: none !important;
+  }
+}
+
+@font-face {
+  font-family: "IPAexGothic";
+  src: url("/fonts/ipaexg.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}

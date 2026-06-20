@@ -1,0 +1,6 @@
+streamlit
+matplotlib
+japanize-matplotlib
+pandas
+fastapi
+uvicorn[standard]
