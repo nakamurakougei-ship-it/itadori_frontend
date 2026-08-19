@@ -429,6 +429,13 @@ export default function ItadoriApp() {
                       <td>
                         <input
                           type="text"
+                          lang="ja"
+                          inputMode="text"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          placeholder="名称"
                           value={row.名称}
                           onChange={(e) =>
                             updateShelf(i, "名称", e.target.value)

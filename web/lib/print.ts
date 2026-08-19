@@ -1,5 +1,5 @@
-import type { PackResult, JobMeta } from "./types";
-import { buildDiagramSvg, diagramToDataUrl } from "./diagram";
+import type { PackResult, Sheet, JobMeta } from "./types";
+import { buildDiagramSvg } from "./diagram";
 
 function escapeHtml(s: string): string {
   return s
@@ -16,63 +16,294 @@ function formatDisplayDate(iso: string): string {
   return `${y}/${m}/${d}`;
 }
 
-function formatJobHeader(job?: JobMeta): string {
-  if (!job) return "";
-  const lines = [
-    job.作成日 ? `作成日：${escapeHtml(formatDisplayDate(job.作成日))}` : "",
-    job.案件名 ? `案件名：${escapeHtml(job.案件名)}` : "",
-    job.担当者 ? `担当者：${escapeHtml(job.担当者)}` : "",
-  ].filter(Boolean);
-  if (lines.length === 0) return "";
-  return `<div class="job-meta">${lines.join("　")}</div>`;
+/**
+ * A4 横（297×210mm）印刷用レイアウト計算
+ *
+ * 縮尺は全枚数を通じて統一する（3×6 と 4×8 が混在しても同スケール）。
+ * 1ページに cols×rows で面付けし、収まらなければ次ページへ。
+ *
+ * A4 横の印刷有効域（margin 8mm）= 281 × 194mm
+ * SVG の座標単位は mm そのまま（1unit = 1mm）。
+ */
+
+// 印刷有効域 (mm) — margin 8mm
+const PAGE_W_MM = 281; // A4 横 297 - 8*2
+const PAGE_H_MM = 194; // A4 横 210 - 8*2
+
+// 案件情報ヘッダーの高さ (mm) — 1ページ目のみ
+const JOB_HEADER_H_MM = 10;
+// 木取図ページヘッダー高さ (mm)
+const PAGE_TITLE_H_MM = 7;
+// 図間のギャップ (mm)
+const GAP_MM = 3;
+
+interface LayoutResult {
+  cols: number;
+  rows: number;
+  scale: number;
+}
+
+/**
+ * 板の実寸（vw×vh mm）と有効印刷域から、
+ * 3×6は2列×2行=4枚、4×8は3列×1行=3枚 を上限として
+ * 縮尺と配置を決める。
+ *
+ * 縮尺は「1列×1行で入る最大」を基準に、
+ * 縦横比を保ったまま cols/rows を増やす。
+ * 枚数 > 1 になっても縮尺は 1列基準から下がるだけで
+ * 板サイズが変わらなければ全ページ同一縮尺。
+ */
+function calcLayout(
+  svgW: number,
+  svgH: number,
+  availW: number,
+  availH: number,
+  maxCols: number,
+  maxRows: number
+): LayoutResult {
+  // 1セルに入る最大縮尺（1列1行）
+  const scale1 = Math.min(availW / svgW, availH / svgH);
+
+  // その縮尺で何列×何行並ぶか
+  const scaledW = svgW * scale1;
+  const scaledH = svgH * scale1;
+
+  const cols = Math.min(maxCols, Math.max(1, Math.floor((availW + GAP_MM) / (scaledW + GAP_MM))));
+  const rows = Math.min(maxRows, Math.max(1, Math.floor((availH + GAP_MM) / (scaledH + GAP_MM))));
+
+  return { cols, rows, scale: scale1 };
+}
+
+/**
+ * 板ラベルごとに最大面付け数を決める。
+ * 3×6（短手 908mm 程度）: 2列×2行 = 4
+ * 4×8（短手 1218mm 程度）: 3列×1行 = 3
+ * 集成材・その他: 2列×2行
+ */
+function maxColsRows(label: string): [number, number] {
+  if (label === "4x8") return [3, 1];
+  return [2, 2];
+}
+
+function buildSvgCell(
+  sheet: Sheet,
+  vw: number,
+  vh: number,
+  label: string,
+  kerf: number,
+  scale: number,
+  x: number,
+  y: number
+): string {
+  const svg = buildDiagramSvg({ sheet, vw, vh, label, kerf });
+
+  // viewBox の totalW/totalH を取り出す
+  const vbMatch = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+  if (!vbMatch) return "";
+  const svgW = parseFloat(vbMatch[1]);
+  const svgH = parseFloat(vbMatch[2]);
+
+  const scaledW = svgW * scale;
+  const scaledH = svgH * scale;
+
+  // SVG を <g transform="translate+scale"> で包み、foreignObject 的に配置
+  // 外側の SVG に埋め込むため、内側のXML宣言・SVGタグを除去してcontent部分だけ取り出す
+  const inner = svg
+    .replace(/<\?xml[^?]*\?>/g, "")
+    .replace(/<svg[^>]*>/, "")
+    .replace(/<\/svg>\s*$/, "");
+
+  return `<g transform="translate(${x},${y})">
+  <svg width="${scaledW}" height="${scaledH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="wasteHatch_${sheet.id}" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="8" stroke="#999" stroke-width="1" opacity="0.5"/>
+      </pattern>
+      <marker id="arrow_${sheet.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#333"/>
+      </marker>
+    </defs>
+    ${inner
+      .replace(/url\(#wasteHatch\)/g, `url(#wasteHatch_${sheet.id})`)
+      .replace(/url\(#arrow\)/g, `url(#arrow_${sheet.id})`)}
+  </svg>
+</g>`;
+}
+
+function buildPageSvg(
+  cells: { sheet: Sheet; vw: number; vh: number; label: string }[],
+  layout: LayoutResult,
+  kerf: number,
+  svgW: number,
+  svgH: number,
+  pageAvailH: number,
+  pageIndex: number,
+  totalPages: number,
+  best: PackResult,
+  job: JobMeta | undefined
+): string {
+  const { cols, scale } = layout;
+  const scaledW = svgW * scale;
+  const scaledH = svgH * scale;
+
+  const headerH = PAGE_H_MM - pageAvailH;
+
+  let content = "";
+
+  // ページヘッダー（案件情報は1ページ目のみ）
+  let hy = 6;
+  if (pageIndex === 0 && job) {
+    const parts = [
+      job.作成日 ? `作成日：${escapeHtml(formatDisplayDate(job.作成日))}` : "",
+      job.案件名 ? `案件名：${escapeHtml(job.案件名)}` : "",
+      job.担当者 ? `担当者：${escapeHtml(job.担当者)}` : "",
+    ].filter(Boolean).join("　　");
+    if (parts) {
+      content += `<text x="${PAGE_W_MM / 2}" y="${hy}" text-anchor="middle" font-size="4.5" fill="#333">${parts}</text>`;
+      hy += 6;
+    }
+  }
+
+  // ページタイトル
+  const titleText = `木取図（${escapeHtml(best.label)}）　歩留まり ${best.utilization_pct}%　${pageIndex + 1}/${totalPages}ページ`;
+  content += `<text x="${PAGE_W_MM / 2}" y="${hy}" text-anchor="middle" font-size="4" fill="#555">${titleText}</text>`;
+  hy += 3;
+
+  // 区切り線
+  content += `<line x1="0" y1="${hy}" x2="${PAGE_W_MM}" y2="${hy}" stroke="#ccc" stroke-width="0.3"/>`;
+  hy += 1;
+
+  // 各セル
+  for (let i = 0; i < cells.length; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = col * (scaledW + GAP_MM);
+    const cy = hy + row * (scaledH + GAP_MM);
+    const { sheet, vw, vh, label } = cells[i];
+    content += buildSvgCell(sheet, vw, vh, label, kerf, scale, cx, cy);
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg"
+  width="${PAGE_W_MM}mm" height="${PAGE_H_MM}mm"
+  viewBox="0 0 ${PAGE_W_MM} ${PAGE_H_MM}"
+  style="display:block">
+  ${content}
+</svg>`;
 }
 
 export function buildPrintHtml(
   best: PackResult,
   kerf: number = 3,
-  maxPerPage?: number,
+  _maxPerPage?: number,
   job?: JobMeta
 ): string {
-  const images = best.sheets.map((s) =>
-    diagramToDataUrl(
-      buildDiagramSvg({
-        sheet: s,
-        vw: s.vw ?? best.vw,
-        vh: s.vh ?? best.vh,
-        label: s.boardLabel ?? best.label,
-        kerf,
-      })
+  // 全シートのセル情報を作る
+  const allCells = best.sheets.map((s) => ({
+    sheet: s,
+    vw: s.vw ?? best.vw,
+    vh: s.vh ?? best.vh,
+    label: s.boardLabel ?? best.label,
+  }));
+
+  if (allCells.length === 0) return "<html><body>データなし</body></html>";
+
+  // 板ラベルごとにグループ化してレイアウトを計算
+  // 3×6 同士・4×8 同士は同じ縮尺にする
+  const firstHeaderH = job ? PAGE_TITLE_H_MM + JOB_HEADER_H_MM : PAGE_TITLE_H_MM;
+  const otherHeaderH = PAGE_TITLE_H_MM;
+
+  // 全シートの中で最大のSVGサイズを基準に縮尺を決める
+  // （3×6と4×8が混在する場合、より大きい4×8基準）
+  let maxSvgW = 0;
+  let maxSvgH = 0;
+  const svgInfos: { svgW: number; svgH: number; maxCols: number; maxRows: number }[] = [];
+
+  for (const cell of allCells) {
+    const svg = buildDiagramSvg({ sheet: cell.sheet, vw: cell.vw, vh: cell.vh, label: cell.label, kerf });
+    const vbMatch = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+    const sw = vbMatch ? parseFloat(vbMatch[1]) : 1000;
+    const sh = vbMatch ? parseFloat(vbMatch[2]) : 800;
+    const [mc, mr] = maxColsRows(cell.label);
+    svgInfos.push({ svgW: sw, svgH: sh, maxCols: mc, maxRows: mr });
+    if (sw > maxSvgW) maxSvgW = sw;
+    if (sh > maxSvgH) maxSvgH = sh;
+  }
+
+  // 全枚数で統一縮尺（最も大きいSVSに合わせて最小ヘッダー有効域で計算）
+  const minAvailH = Math.min(PAGE_H_MM - firstHeaderH, PAGE_H_MM - otherHeaderH);
+  // 各セルの maxCols/maxRows は代表値（最初の枚の板ラベル）で決める
+  const firstLabel = allCells[0].label;
+  const [globalMaxCols, globalMaxRows] = maxColsRows(firstLabel);
+  const layout = calcLayout(maxSvgW, maxSvgH, PAGE_W_MM, minAvailH, globalMaxCols, globalMaxRows);
+  const perPage = layout.cols * layout.rows;
+
+  // ページに分割
+  const pages: typeof allCells[] = [];
+  for (let i = 0; i < allCells.length; i += perPage) {
+    pages.push(allCells.slice(i, i + perPage));
+  }
+
+  const pageSvgs = pages.map((cells, i) =>
+    buildPageSvg(
+      cells,
+      layout,
+      kerf,
+      maxSvgW,
+      maxSvgH,
+      i === 0 ? PAGE_H_MM - firstHeaderH : PAGE_H_MM - otherHeaderH,
+      i,
+      pages.length,
+      best,
+      job
     )
   );
 
-  const chunk = maxPerPage != null && maxPerPage >= 1 ? maxPerPage : 1;
-  const pages: string[][] = [];
-  for (let i = 0; i < images.length; i += chunk) {
-    pages.push(images.slice(i, i + chunk));
-  }
-
-  const jobHeader = formatJobHeader(job);
-  const pageHtml = pages
+  const pageHtml = pageSvgs
     .map(
-      (pageImgs, i) => `
-    <div class="diagram-page">
-      <h1>木取図（${best.label}）— ${i + 1}ページ目　歩留まり ${best.utilization_pct}%</h1>
-      ${jobHeader}
-      ${pageImgs.map((src, j) => `<img class="diagram-img" src="${src}" alt="木取図${j + 1}"/>`).join("")}
-    </div>`
+      (svg, i) => `
+<div class="print-page">
+${svg}
+</div>`
     )
-    .join("");
+    .join("\n");
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>木取図 — ${escapeHtml(best.label)}</title>
 <style>
-@media print { @page { size: A4 landscape; margin: 8mm; } body { margin: 0; } }
-body { font-family: "Hiragino Sans", "Yu Gothic", sans-serif; }
-.diagram-page { page-break-after: always; padding: 0; }
-.diagram-page:last-child { page-break-after: auto; }
-.diagram-img { width: 100%; max-height: 88vh; object-fit: contain; }
-h1 { font-size: 12pt; margin-bottom: 3mm; color: #333; }
-.job-meta { font-size: 10pt; margin-bottom: 3mm; color: #444; }
-</style></head><body>${pageHtml}</body></html>`;
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  body { margin: 0; }
+  .print-page { page-break-after: always; }
+  .print-page:last-child { page-break-after: auto; }
+}
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  background: #fff;
+}
+.print-page {
+  width: 297mm;
+  height: 210mm;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.print-page svg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+</style>
+</head>
+<body>
+${pageHtml}
+</body>
+</html>`;
 }
 
 export function downloadPrintHtml(
@@ -89,3 +320,6 @@ export function downloadPrintHtml(
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// DiagramSvg コンポーネントから引き続き使えるよう再エクスポート
+export { diagramToDataUrl } from "./diagram";
