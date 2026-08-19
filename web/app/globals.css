@@ -410,6 +410,14 @@ input[type="text"] {
   background: #fff;
 }
 
+/* 名称列：日本語IMEを常にアクティブにする */
+.shelf-table td input.input-ja {
+  ime-mode: active;
+}
+.shelf-table td input.input-ja:focus {
+  ime-mode: active;
+}
+
 .btn-row {
   display: flex;
   gap: 0.5rem;

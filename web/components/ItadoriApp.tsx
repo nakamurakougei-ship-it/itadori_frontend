@@ -429,11 +429,11 @@ export default function ItadoriApp() {
                       <td>
                         <input
                           type="text"
+                          className="input-ja"
                           lang="ja"
-                          inputMode="text"
                           autoComplete="off"
                           autoCorrect="off"
-                          autoCapitalize="none"
+                          autoCapitalize="off"
                           spellCheck={false}
                           placeholder="名称"
                           value={row.名称}
