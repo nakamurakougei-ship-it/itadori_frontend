@@ -38,6 +38,12 @@ export interface Sheet {
   vh?: number;
 }
 
+export interface JobMeta {
+  作成日: string;
+  案件名: string;
+  担当者: string;
+}
+
 export interface PackResult {
   label: string;
   sheets: Sheet[];
@@ -56,15 +62,15 @@ export interface PackResult {
 
 export interface ShelfRow {
   名称: string;
+  長さ: number;
   幅: number;
-  奥行: number;
   枚数: number;
 }
 
 export type SizeChoice =
-  | "自動選定 (効率優先)"
-  | "3x6固定"
-  | "4x8固定"
+  | "効率優先（3×6・4×8混在）"
+  | "3×6のみ"
+  | "4×8のみ"
   | "集成材";
 
 export interface BoardSettings {

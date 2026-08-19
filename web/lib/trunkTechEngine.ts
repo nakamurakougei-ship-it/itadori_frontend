@@ -630,7 +630,7 @@ export function asLongShort(
 }
 
 export function buildAllParts(
-  shelfList: { 名称: string; 幅: number; 奥行: number; 枚数: number }[]
+  shelfList: { 名称: string; 長さ: number; 幅: number; 枚数: number }[]
 ): Part[] {
   const allParts: Part[] = [];
   for (const row of shelfList) {
@@ -640,8 +640,8 @@ export function buildAllParts(
     for (let i = 0; i < nQty; i++) {
       allParts.push({
         n: row.名称,
-        w: Number(row.幅) || 0,
-        d: Number(row.奥行) || 0,
+        w: Number(row.長さ) || 0,
+        d: Number(row.幅) || 0,
       });
     }
   }
