@@ -30,12 +30,13 @@ function formatDisplayDate(iso: string): string {
 const PAGE_W_MM = 281; // A4 横 297 - 8*2
 const PAGE_H_MM = 194; // A4 横 210 - 8*2
 
-// 案件情報ヘッダーの高さ (mm) — 1ページ目のみ
+// 案件情報ヘッダーの高さ (mm) — 全ページ共通
 const JOB_HEADER_H_MM = 10;
 // 木取図ページヘッダー高さ (mm)
 const PAGE_TITLE_H_MM = 7;
 // 図間のギャップ (mm)
 const GAP_MM = 3;
+const BOARD_NO_H_MM = 4;
 
 interface LayoutResult {
   cols: number;
@@ -93,7 +94,8 @@ function buildSvgCell(
   kerf: number,
   scale: number,
   x: number,
-  y: number
+  y: number,
+  boardNo: number
 ): string {
   const svg = buildDiagramSvg({ sheet, vw, vh, label, kerf });
 
@@ -114,6 +116,7 @@ function buildSvgCell(
     .replace(/<\/svg>\s*$/, "");
 
   return `<g transform="translate(${x},${y})">
+  <text x="0" y="-1.2" font-size="3.6" font-weight="700" fill="#222">No.${boardNo}</text>
   <svg width="${scaledW}" height="${scaledH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <pattern id="wasteHatch_${sheet.id}" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
@@ -131,14 +134,15 @@ function buildSvgCell(
 }
 
 function buildPageSvg(
-  cells: { sheet: Sheet; vw: number; vh: number; label: string }[],
+  cells: { sheet: Sheet; vw: number; vh: number; label: string; boardNo: number }[],
   layout: LayoutResult,
   kerf: number,
   svgW: number,
   svgH: number,
-  pageAvailH: number,
+  _pageAvailH: number,
   pageIndex: number,
   totalPages: number,
+  totalBoards: number,
   best: PackResult,
   job: JobMeta | undefined
 ): string {
@@ -146,13 +150,10 @@ function buildPageSvg(
   const scaledW = svgW * scale;
   const scaledH = svgH * scale;
 
-  const headerH = PAGE_H_MM - pageAvailH;
-
   let content = "";
 
-  // ページヘッダー（案件情報は1ページ目のみ）
   let hy = 6;
-  if (pageIndex === 0 && job) {
+  if (job) {
     const parts = [
       job.作成日 ? `作成日：${escapeHtml(formatDisplayDate(job.作成日))}` : "",
       job.案件名 ? `案件名：${escapeHtml(job.案件名)}` : "",
@@ -164,23 +165,29 @@ function buildPageSvg(
     }
   }
 
-  // ページタイトル
-  const titleText = `木取図（${escapeHtml(best.label)}）　歩留まり ${best.utilization_pct}%　${pageIndex + 1}/${totalPages}ページ`;
-  content += `<text x="${PAGE_W_MM / 2}" y="${hy}" text-anchor="middle" font-size="4" fill="#555">${titleText}</text>`;
+  const firstNo = cells[0]?.boardNo ?? 1;
+  const lastNo = cells[cells.length - 1]?.boardNo ?? firstNo;
+  const boardRange =
+    firstNo === lastNo
+      ? `板 No.${firstNo}`
+      : `板 No.${firstNo}〜${lastNo}`;
+  const titleText = `木取図（${escapeHtml(best.label)}）　歩留まり ${best.utilization_pct}%　${boardRange}／全${totalBoards}枚`;
+  content += `<text x="2" y="${hy}" text-anchor="start" font-size="4" fill="#555">${titleText}</text>`;
+  content += `<text x="${PAGE_W_MM - 2}" y="${hy}" text-anchor="end" font-size="5.5" font-weight="700" fill="#222">${pageIndex + 1} / ${totalPages}</text>`;
   hy += 3;
 
   // 区切り線
   content += `<line x1="0" y1="${hy}" x2="${PAGE_W_MM}" y2="${hy}" stroke="#ccc" stroke-width="0.3"/>`;
-  hy += 1;
+  hy += 5;
 
   // 各セル
   for (let i = 0; i < cells.length; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const cx = col * (scaledW + GAP_MM);
-    const cy = hy + row * (scaledH + GAP_MM);
-    const { sheet, vw, vh, label } = cells[i];
-    content += buildSvgCell(sheet, vw, vh, label, kerf, scale, cx, cy);
+    const cy = hy + row * (scaledH + GAP_MM + BOARD_NO_H_MM);
+    const { sheet, vw, vh, label, boardNo } = cells[i];
+    content += buildSvgCell(sheet, vw, vh, label, kerf, scale, cx, cy, boardNo);
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg"
@@ -198,19 +205,21 @@ export function buildPrintHtml(
   job?: JobMeta
 ): string {
   // 全シートのセル情報を作る
-  const allCells = best.sheets.map((s) => ({
+  const allCells = best.sheets.map((s, i) => ({
     sheet: s,
     vw: s.vw ?? best.vw,
     vh: s.vh ?? best.vh,
     label: s.boardLabel ?? best.label,
+    boardNo: i + 1,
   }));
 
   if (allCells.length === 0) return "<html><body>データなし</body></html>";
 
-  // 板ラベルごとにグループ化してレイアウトを計算
-  // 3×6 同士・4×8 同士は同じ縮尺にする
-  const firstHeaderH = job ? PAGE_TITLE_H_MM + JOB_HEADER_H_MM : PAGE_TITLE_H_MM;
-  const otherHeaderH = PAGE_TITLE_H_MM;
+  const hasJob =
+    !!job && Boolean(job.作成日 || job.案件名 || job.担当者);
+  const headerH = hasJob
+    ? PAGE_TITLE_H_MM + JOB_HEADER_H_MM
+    : PAGE_TITLE_H_MM;
 
   // 全シートの中で最大のSVGサイズを基準に縮尺を決める
   // （3×6と4×8が混在する場合、より大きい4×8基準）
@@ -229,9 +238,7 @@ export function buildPrintHtml(
     if (sh > maxSvgH) maxSvgH = sh;
   }
 
-  // 全枚数で統一縮尺（最も大きいSVSに合わせて最小ヘッダー有効域で計算）
-  const minAvailH = Math.min(PAGE_H_MM - firstHeaderH, PAGE_H_MM - otherHeaderH);
-  // 各セルの maxCols/maxRows は代表値（最初の枚の板ラベル）で決める
+  const minAvailH = PAGE_H_MM - headerH;
   const firstLabel = allCells[0].label;
   const [globalMaxCols, globalMaxRows] = maxColsRows(firstLabel);
   const layout = calcLayout(maxSvgW, maxSvgH, PAGE_W_MM, minAvailH, globalMaxCols, globalMaxRows);
@@ -250,9 +257,10 @@ export function buildPrintHtml(
       kerf,
       maxSvgW,
       maxSvgH,
-      i === 0 ? PAGE_H_MM - firstHeaderH : PAGE_H_MM - otherHeaderH,
+      PAGE_H_MM - headerH,
       i,
       pages.length,
+      allCells.length,
       best,
       job
     )
