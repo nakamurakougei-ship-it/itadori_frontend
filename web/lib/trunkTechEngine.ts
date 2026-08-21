@@ -302,6 +302,77 @@ function rebuildFreeRects(
   return free;
 }
 
+/**
+ * 大断ち（主部材）後の余りを、主部材の列幅に分断せず帯として返す。
+ * - 各行の右端ストリップ
+ * - 主部材帯の下の全幅ストリップ
+ */
+function guillotineRemnantBands(
+  primaries: PlacedPart[],
+  vw: number,
+  vh: number,
+  kerf: number
+): Rect[] {
+  if (primaries.length === 0) {
+    return [{ x: 0, y: 0, w: vw, h: vh }];
+  }
+
+  const rows = new Map<number, PlacedPart[]>();
+  for (const p of primaries) {
+    const yKey = Math.round(p.y);
+    const list = rows.get(yKey) ?? [];
+    list.push(p);
+    rows.set(yKey, list);
+  }
+
+  const rects: Rect[] = [];
+  let maxUsedH = 0;
+  for (const [, rowParts] of [...rows.entries()].sort((a, b) => a[0] - b[0])) {
+    const y = Math.min(...rowParts.map((p) => p.y));
+    const rowH = Math.max(...rowParts.map((p) => p.h));
+    const usedW = Math.max(...rowParts.map((p) => p.x + p.w)) + kerf;
+    maxUsedH = Math.max(maxUsedH, y + rowH + kerf);
+    const rightW = vw - usedW;
+    if (rightW > 1 && rowH > 1) {
+      rects.push({ x: usedW, y, w: rightW, h: rowH });
+    }
+  }
+
+  const bottomH = vh - maxUsedH;
+  if (bottomH > 1) {
+    rects.push({ x: 0, y: maxUsedH, w: vw, h: bottomH });
+  }
+  return rects;
+}
+
+/** 主部材帯の余りから、すでに置いた小物の占有を除いた空き矩形 */
+function remnantFreeRects(
+  sheetParts: PlacedPart[],
+  vw: number,
+  vh: number,
+  kerf: number,
+  maxArea: number
+): Rect[] {
+  const primaries = sheetParts.filter((p) => p.w * p.h >= maxArea - 0.01);
+  let free = guillotineRemnantBands(primaries, vw, vh, kerf);
+
+  for (const p of sheetParts) {
+    if (p.w * p.h >= maxArea - 0.01) continue;
+    const occ: Rect = {
+      x: p.x,
+      y: p.y,
+      w: Math.min(p.w + kerf, vw - p.x),
+      h: Math.min(p.h + kerf, vh - p.y),
+    };
+    const next: Rect[] = [];
+    for (const f of free) {
+      next.push(...subtractOccupied(f, occ));
+    }
+    free = pruneFreeRects(next);
+  }
+  return free;
+}
+
 function refreshSheetStats(sheet: Sheet, vw: number, vh: number, kerf: number): void {
   sheet.parts.forEach((p, i) => {
     p.seq = i + 1;
@@ -333,7 +404,8 @@ function fillRemnantsFromPool(
   if (sheet.parts.length === 0) return 0;
 
   const maxArea = Math.max(...sheet.parts.map((p) => p.w * p.h));
-  let freeRects = rebuildFreeRects(sheet.parts, vw, vh, kerf);
+  // 主部材の列に分断せず、大断ち後の全幅帯として詰める
+  let freeRects = remnantFreeRects(sheet.parts, vw, vh, kerf, maxArea);
   let placedCount = 0;
   let improved = true;
 
