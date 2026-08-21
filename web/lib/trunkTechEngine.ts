@@ -1,8 +1,20 @@
 import type { Part, PlacedPart, Rect, Sheet } from "./types";
 
 const MIN_WASTE_DISPLAY = 80;
-/** 行端ストリップに嵌める最小幅 (mm) */
-const MIN_STRIP_FILL = 120;
+
+/** ダメ切り：長辺・短辺それぞれ1面のみ (mm) */
+export const DAME_TRIM_MM = 5;
+
+/** 定尺からダメ切りを除いた有効木取り寸法 */
+export function usableBoardSize(
+  nominalW: number,
+  nominalH: number
+): [number, number] {
+  return [
+    Math.max(0, nominalW - DAME_TRIM_MM),
+    Math.max(0, nominalH - DAME_TRIM_MM),
+  ];
+}
 
 export function normalizePart(p: Part): Part {
   return { ...p, w: Math.max(p.w, p.d), d: Math.min(p.w, p.d) };
@@ -88,50 +100,9 @@ function finalizeSheet(
 }
 
 /**
- * 行の右端余り（例: 1500mm 取り後の 300mm 帯）に、
- * 他寸法の部材が入れば嵌める — 職人の「1500+300」判断。
+ * 行の右端余りへの1次元埋めは、主部材配置後の fillRemnantsFromPool に置き換えた。
+ * （途中で小さい部材を横に入れると、同じ行の主部材が続けて置けなくなるため）
  */
-function fillRowStrip(
-  row: RowState,
-  vw: number,
-  pool: Map<string, Part[]>,
-  ownerKey: string,
-  kerf: number
-): void {
-  let x = row.usedW;
-
-  while (x + MIN_STRIP_FILL <= vw) {
-    let best: { key: string; idx: number; part: Part } | null = null;
-
-    for (const [key, list] of pool.entries()) {
-      if (key === ownerKey) continue;
-      for (let i = 0; i < list.length; i++) {
-        const p = list[i];
-        if (p.w <= vw - x && p.d <= row.h) {
-          if (!best || p.w > best.part.w) {
-            best = { key, idx: i, part: p };
-          }
-        }
-      }
-    }
-
-    if (!best) break;
-
-    const list = pool.get(best.key)!;
-    const p = list.splice(best.idx, 1)[0];
-    row.parts.push({
-      n: p.n,
-      x,
-      y: row.y,
-      w: p.w,
-      h: p.d,
-      seq: 0,
-    });
-    x += p.w + kerf;
-  }
-
-  row.usedW = x;
-}
 
 function placePrimaryInSheet(
   parts: Part[],
@@ -141,8 +112,8 @@ function placePrimaryInSheet(
   vw: number,
   vh: number,
   kerf: number,
-  ownerKey: string,
-  pool: Map<string, Part[]> | null
+  _ownerKey: string,
+  _pool: Map<string, Part[]> | null
 ): boolean {
   const placeInRow = (r: RowState): boolean => {
     if (parts.length === 0 || r.h !== ph || vw - r.usedW < pw) return false;
@@ -156,7 +127,8 @@ function placePrimaryInSheet(
       seq: 0,
     });
     r.usedW += pw + kerf;
-    if (pool) fillRowStrip(r, vw, pool, ownerKey, kerf);
+    // 行端ストリップ埋めはここでは行わない。
+    // 主部材（大断ち帯）を先に並べ切り、余り面は fillRemnantsFromPool で詰める。
     return true;
   };
 
@@ -172,7 +144,6 @@ function placePrimaryInSheet(
       usedW: pw + kerf,
       parts: [{ n: p.n, x: 0, y: state.usedH, w: pw, h: ph, seq: 0 }],
     };
-    if (pool) fillRowStrip(row, vw, pool, ownerKey, kerf);
     state.rows.push(row);
     state.usedH += ph + kerf;
     return true;
@@ -216,7 +187,7 @@ function packHomogeneousGroup(
   return sheets.map((s, i) => finalizeSheet(s, vw, vh, groupSize, i + 1));
 }
 
-/** 主グループ配置 + 行端ストリップに他寸法を嵌める */
+/** 主グループを行割り配置（余りへの混載は後段の fillRemnantsFromPool） */
 function packHomogeneousGroupWithStripFill(
   vw: number,
   vh: number,
@@ -272,10 +243,170 @@ function sortGroupKeys(groups: Map<string, Part[]>): string[] {
 }
 
 /**
+ * 既配置は動かさず、空き矩形にプールの「より小さい」部材を可能な限り詰める。
+ * 大断ち後の余り面を使い切るための後処理（既存行割りはそのまま）。
+ */
+function subtractOccupied(free: Rect, occ: Rect): Rect[] {
+  const x1 = Math.max(free.x, occ.x);
+  const y1 = Math.max(free.y, occ.y);
+  const x2 = Math.min(free.x + free.w, occ.x + occ.w);
+  const y2 = Math.min(free.y + free.h, occ.y + occ.h);
+  if (x2 <= x1 || y2 <= y1) return [free];
+
+  const next: Rect[] = [];
+  if (free.x < x1) {
+    next.push({ x: free.x, y: free.y, w: x1 - free.x, h: free.h });
+  }
+  if (x2 < free.x + free.w) {
+    next.push({
+      x: x2,
+      y: free.y,
+      w: free.x + free.w - x2,
+      h: free.h,
+    });
+  }
+  if (free.y < y1) {
+    next.push({ x: x1, y: free.y, w: x2 - x1, h: y1 - free.y });
+  }
+  if (y2 < free.y + free.h) {
+    next.push({
+      x: x1,
+      y: y2,
+      w: x2 - x1,
+      h: free.y + free.h - y2,
+    });
+  }
+  return next.filter((r) => r.w > 1 && r.h > 1);
+}
+
+function rebuildFreeRects(
+  placed: PlacedPart[],
+  vw: number,
+  vh: number,
+  kerf: number
+): Rect[] {
+  let free: Rect[] = [{ x: 0, y: 0, w: vw, h: vh }];
+  for (const p of placed) {
+    const occ: Rect = {
+      x: p.x,
+      y: p.y,
+      w: Math.min(p.w + kerf, vw - p.x),
+      h: Math.min(p.h + kerf, vh - p.y),
+    };
+    const next: Rect[] = [];
+    for (const f of free) {
+      next.push(...subtractOccupied(f, occ));
+    }
+    free = pruneFreeRects(next);
+  }
+  return free;
+}
+
+function refreshSheetStats(sheet: Sheet, vw: number, vh: number, kerf: number): void {
+  sheet.parts.forEach((p, i) => {
+    p.seq = i + 1;
+  });
+  const usedArea = sheet.parts.reduce((s, p) => s + p.w * p.h, 0);
+  const sheetArea = vw * vh;
+  sheet.utilization = sheetArea > 0 ? (usedArea / sheetArea) * 100 : 0;
+  const free = rebuildFreeRects(sheet.parts, vw, vh, kerf);
+  sheet.wasteRects = free.filter(
+    (r) => r.w >= MIN_WASTE_DISPLAY && r.h >= MIN_WASTE_DISPLAY
+  );
+  const keys = [
+    ...new Set(
+      sheet.parts.map((p) => `${Math.round(p.w)}×${Math.round(p.h)}`)
+    ),
+  ].sort();
+  if (keys.length > 0) {
+    sheet.groupSize = keys.join(" + ");
+  }
+}
+
+function fillRemnantsFromPool(
+  sheet: Sheet,
+  pool: Map<string, Part[]>,
+  vw: number,
+  vh: number,
+  kerf: number
+): number {
+  if (sheet.parts.length === 0) return 0;
+
+  const maxArea = Math.max(...sheet.parts.map((p) => p.w * p.h));
+  let freeRects = rebuildFreeRects(sheet.parts, vw, vh, kerf);
+  let placedCount = 0;
+  let improved = true;
+
+  while (improved) {
+    improved = false;
+    let best: {
+      key: string;
+      idx: number;
+      fi: number;
+      score: number;
+      part: Part;
+    } | null = null;
+
+    for (const [key, list] of pool.entries()) {
+      for (let i = 0; i < list.length; i++) {
+        const p = list[i];
+        // 大きい板の余りには、より小さい部材だけを入れる
+        if (p.w * p.d >= maxArea - 0.01) continue;
+        for (let fi = 0; fi < freeRects.length; fi++) {
+          const f = freeRects[fi];
+          if (p.w > f.w || p.d > f.h) continue;
+          const candidate: PlacedPart = {
+            n: p.n,
+            x: f.x,
+            y: f.y,
+            w: p.w,
+            h: p.d,
+            seq: 0,
+          };
+          if (!isValidPlacement(candidate, sheet.parts, vw, vh)) continue;
+          const s = scoreFit(f, p.w, p.d, kerf);
+          if (!best || s < best.score) {
+            best = { key, idx: i, fi, score: s, part: p };
+          }
+        }
+      }
+    }
+
+    if (!best) break;
+
+    const list = pool.get(best.key)!;
+    const part = list.splice(best.idx, 1)[0];
+    const free = freeRects[best.fi];
+    sheet.parts.push({
+      n: part.n,
+      x: free.x,
+      y: free.y,
+      w: part.w,
+      h: part.d,
+      seq: 0,
+    });
+    freeRects.splice(
+      best.fi,
+      1,
+      ...splitFreeRect(free, part.w, part.d, kerf)
+    );
+    freeRects = pruneFreeRects(freeRects);
+    placedCount++;
+    improved = true;
+  }
+
+  if (placedCount > 0) {
+    refreshSheetStats(sheet, vw, vh, kerf);
+  }
+  return placedCount;
+}
+
+/**
  * 職人向け木取り:
- * 1) 大きい寸法グループを行割り
+ * 1) 大きい寸法グループを行割り（大断ちに相当）
  * 2) 行端ストリップに小さい寸法を嵌める（1500+300）
- * 3) 残りを同寸法で取る
+ * 3) 既配置は維持したまま、余り面へ小さい部材を可能な限り詰める
+ * 4) 残りを同寸法で取る
  */
 function packGroupedGuillotine(
   parts: Part[],
@@ -301,8 +432,15 @@ function packGroupedGuillotine(
       pool
     );
     for (const s of groupSheets) {
+      // 大断ち後の余りに、プールの小さい部材を追加配置（既存部品は動かさない）
+      fillRemnantsFromPool(s, pool, vw, vh, kerf);
       allSheets.push({ ...s, id: id++ });
     }
+  }
+
+  // 後からできた空きにもう一度（他グループ処理後の残りを拾う）
+  for (const s of allSheets) {
+    fillRemnantsFromPool(s, pool, vw, vh, kerf);
   }
 
   for (const key of orderedKeys) {
@@ -589,11 +727,13 @@ export class TrunkTechEngine {
     vh: number,
     boardLabel?: string
   ): Sheet[] {
+    const [uvw, uvh] = usableBoardSize(vw, vh);
     const normalized = parts.map((p) => normalizePart({ ...p }));
     const valid = normalized.filter(
-      (p) => p.w <= vw && p.d <= vh && p.w > 0 && p.d > 0
+      (p) => p.w <= uvw && p.d <= uvh && p.w > 0 && p.d > 0
     );
-    const sheets = packGroupedGuillotineWithMerge(valid, vw, vh, this.kerf);
+    const sheets = packGroupedGuillotineWithMerge(valid, uvw, uvh, this.kerf);
+    // 表示・材料面積は定尺（ダメ切り前）。配置座標は有効寸法上。
     return boardLabel ? stampSheets(sheets, vw, vh, boardLabel) : sheets;
   }
 }

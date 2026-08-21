@@ -4,6 +4,7 @@ import {
   TrunkTechEngine,
   normalizePart,
   renumberSheets,
+  usableBoardSize,
 } from "./trunkTechEngine";
 
 /**
@@ -113,6 +114,8 @@ export function tryPackCraftsmanAssign(
 ): PackResult | null {
   const [vw36, vh36, label36] = s36;
   const [vw48, vh48, label48] = s48;
+  const [u36w, u36h] = usableBoardSize(vw36, vh36);
+  const [u48w, u48h] = usableBoardSize(vw48, vh48);
 
   const normalized = parts
     .map((p) => normalizePart({ ...p }))
@@ -126,8 +129,8 @@ export function tryPackCraftsmanAssign(
   let used48 = false;
 
   for (const groupParts of groups.values()) {
-    const fits36 = groupParts.every((p) => p.w <= vw36 && p.d <= vh36);
-    const fits48 = groupParts.every((p) => p.w <= vw48 && p.d <= vh48);
+    const fits36 = groupParts.every((p) => p.w <= u36w && p.d <= u36h);
+    const fits48 = groupParts.every((p) => p.w <= u48w && p.d <= u48h);
 
     const sheets36 = fits36
       ? engine.packSheets(groupParts, vw36, vh36, label36)
@@ -140,10 +143,10 @@ export function tryPackCraftsmanAssign(
       sheets36,
       sheets48,
       groupParts.length,
-      vw36,
-      vh36,
-      vw48,
-      vh48
+      u36w,
+      u36h,
+      u48w,
+      u48h
     );
     if (!picked) return null;
 

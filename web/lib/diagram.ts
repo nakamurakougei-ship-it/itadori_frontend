@@ -1,4 +1,5 @@
 import type { Sheet } from "./types";
+import { DAME_TRIM_MM } from "./trunkTechEngine";
 
 const COLORS = {
   sheet: "#f8f0e3",
@@ -13,8 +14,6 @@ const COLORS = {
   title: "#1a1a1a",
   badge: "#2d6a4f",
 };
-
-const MARGIN_MM = 1; // 鼻切り 1mm（表示用）
 
 export interface DiagramOptions {
   sheet: Sheet;
@@ -72,14 +71,18 @@ export function buildDiagramSvg({
   const padT = 56;
   const padR = 16;
   const padB = 28;
-  const boardW = vw + MARGIN_MM * 2;
-  const boardH = vh + MARGIN_MM * 2;
+  // vw/vh は定尺。配置座標は長短各1面のダメ切りを除いた有効寸法上。
+  const boardW = vw;
+  const boardH = vh;
+  const usableW = Math.max(0, vw - DAME_TRIM_MM);
+  const usableH = Math.max(0, vh - DAME_TRIM_MM);
   const totalW = boardW + padL + padR;
   const totalH = boardH + padT + padB;
-  const ox = padL + MARGIN_MM;
-  const oy = padT + MARGIN_MM;
+  // ダメ切りは左辺・下辺（長短各1面）
+  const ox = padL + DAME_TRIM_MM;
+  const oy = padT;
 
-  const toSvgY = (y: number, h: number) => oy + (vh - y - h);
+  const toSvgY = (y: number, h: number) => oy + (usableH - y - h);
 
   let partsSvg = "";
   for (const p of sheet.parts) {
@@ -130,8 +133,8 @@ export function buildDiagramSvg({
   let rowCutSvg = "";
   for (const [ry, rh] of rowYs) {
     const bottomY = toSvgY(ry, rh) + rh;
-    rowCutSvg += `<line x1="${ox}" y1="${bottomY}" x2="${ox + vw}" y2="${bottomY}" stroke="#2980b9" stroke-width="1.5" opacity="0.75"/>`;
-    rowCutSvg += `<text x="${ox + vw + 4}" y="${bottomY + 3}" font-size="8" fill="#2980b9">定規</text>`;
+    rowCutSvg += `<line x1="${ox}" y1="${bottomY}" x2="${ox + usableW}" y2="${bottomY}" stroke="#2980b9" stroke-width="1.5" opacity="0.75"/>`;
+    rowCutSvg += `<text x="${ox + usableW + 4}" y="${bottomY + 3}" font-size="8" fill="#2980b9">定規</text>`;
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -155,12 +158,12 @@ export function buildDiagramSvg({
 
   <!-- 定尺板 -->
   <rect x="${padL}" y="${padT}" width="${boardW}" height="${boardH}" fill="${COLORS.sheet}" stroke="${COLORS.sheetBorder}" stroke-width="2.5" rx="1"/>
-  <!-- 鼻切り余白 -->
-  <rect x="${ox}" y="${oy}" width="${vw}" height="${vh}" fill="none" stroke="${COLORS.margin}" stroke-width="0.8" stroke-dasharray="6,4"/>
+  <!-- ダメ切り（長短各1面・左辺と下辺）後の有効域 -->
+  <rect x="${ox}" y="${oy}" width="${usableW}" height="${usableH}" fill="none" stroke="${COLORS.margin}" stroke-width="0.8" stroke-dasharray="6,4"/>
 
   <!-- 長手方向矢印 -->
-  <line x1="${ox + 12}" y1="${oy - 6}" x2="${ox + vw - 12}" y2="${oy - 6}" stroke="${COLORS.dim}" stroke-width="1" marker-end="url(#arrow)"/>
-  <text x="${ox + vw / 2}" y="${oy - 10}" text-anchor="middle" font-size="8" fill="${COLORS.dim}">長手</text>
+  <line x1="${ox + 12}" y1="${oy - 6}" x2="${ox + usableW - 12}" y2="${oy - 6}" stroke="${COLORS.dim}" stroke-width="1" marker-end="url(#arrow)"/>
+  <text x="${ox + usableW / 2}" y="${oy - 10}" text-anchor="middle" font-size="8" fill="${COLORS.dim}">長手</text>
 
   ${wasteSvg}
   ${partsSvg}

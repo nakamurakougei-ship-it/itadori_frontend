@@ -614,7 +614,7 @@ export default function ItadoriApp() {
                 </li>
                 <li>
                   <strong>ダメ切り・刃物厚</strong>
-                  ：四方5mmずつのダメ切り（有効寸法は縦横-10mm）、刃厚3mm（設定で変更可能）を見込んで計算しています。
+                  ：長辺・短辺それぞれ1面のみ5mmのダメ切り（有効寸法は縦横-5mmずつ）、刃厚3mm（設定で変更可能）を見込んで計算しています。
                 </li>
                 <li>
                   <strong>木目の保護</strong>

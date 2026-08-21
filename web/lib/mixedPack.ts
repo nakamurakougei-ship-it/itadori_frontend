@@ -4,6 +4,7 @@ import {
   TrunkTechEngine,
   normalizePart,
   renumberSheets,
+  usableBoardSize,
 } from "./trunkTechEngine";
 
 /**
@@ -21,12 +22,13 @@ export function tryPackMixed36And48(
 ): PackResult | null {
   const [vw36, vh36, label36] = s36;
   const [vw48, vh48, label48] = s48;
+  const [u36w, u36h] = usableBoardSize(vw36, vh36);
 
   const normalized = parts
     .map((p) => normalizePart({ ...p }))
     .filter((p) => p.w > 0 && p.d > 0);
 
-  const fits36 = (p: Part) => p.w <= vw36 && p.d <= vh36;
+  const fits36 = (p: Part) => p.w <= u36w && p.d <= u36h;
   const for36 = normalized.filter(fits36);
   const for48 = normalized.filter((p) => !fits36(p));
 
