@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
+
+const GA_MEASUREMENT_ID = "G-FWQ7S1TFGM";
 
 const siteTitle =
   "イタドリ | 木工・DIY専用の板割り・木取り計算Webアプリ【無料・自動生成】";
@@ -34,7 +37,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body>
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }
