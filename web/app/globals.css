@@ -47,8 +47,45 @@ body.no-bg {
 }
 
 .title-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
   font-size: 2.25rem;
   font-weight: 700;
+  line-height: 1.2;
+}
+
+.title-main-brand {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.title-main-seo {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #555;
+  line-height: 1.45;
+}
+
+.page-header {
+  margin-bottom: 0;
+}
+
+.seo-benefits {
+  margin: 0 0 0.35rem;
+}
+
+.seo-benefits h2 {
+  margin: 0 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #555;
+  line-height: 1.45;
+}
+
+.seo-benefits h2:last-child {
+  margin-bottom: 0;
 }
 
 .powered-badge {

@@ -193,24 +193,35 @@ export default function ItadoriApp() {
 
   return (
     <div className={`page${hasBg ? "" : " no-bg"}`}>
-      <div className="title-with-badge">
-        <span className="title-main">イタドリ</span>
-        <span className="powered-badge">Powered by TRAMOYA</span>
-      </div>
-      <p className="lead">
-        定尺板から効率よく木取りを行うためのアプリです。
-        <br />
-        あくまで木取りの参考としてご活用ください。
-      </p>
-      <p className="about-link-row">
-        <button
-          type="button"
-          className="about-link"
-          onClick={() => setAboutOpen(true)}
-        >
-          ご利用前にご確認ください！
-        </button>
-      </p>
+      <header className="page-header">
+        <div className="title-with-badge">
+          <h1 className="title-main">
+            <span className="title-main-brand">イタドリ</span>
+            <span className="title-main-seo">
+              木取り・板割り計算を自動化する木工専用ツール「イタドリ」
+            </span>
+          </h1>
+          <span className="powered-badge">Powered by TRAMOYA</span>
+        </div>
+        <p className="lead">
+          定尺板から効率よく木取りを行うためのアプリです。
+          <br />
+          あくまで木取りの参考としてご活用ください。
+        </p>
+        <section className="seo-benefits" aria-label="サービスの特徴">
+          <h2>材料のムダと面倒な手計算をゼロにするカット図面自動生成</h2>
+          <h2>インストール・会員登録不要でスマホ・PCからすぐ使える</h2>
+        </section>
+        <p className="about-link-row">
+          <button
+            type="button"
+            className="about-link"
+            onClick={() => setAboutOpen(true)}
+          >
+            ご利用前にご確認ください！
+          </button>
+        </p>
+      </header>
 
       <div className="main-layout">
         <div className="main-column">
