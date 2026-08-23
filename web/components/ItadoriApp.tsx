@@ -12,6 +12,7 @@ import { buildPackResult, formatBoardSummary } from "@/lib/packResult";
 import { tryPackMixed36And48 } from "@/lib/mixedPack";
 import { tryPackCraftsmanAssign } from "@/lib/craftsmanAssign";
 import { pickBestPackResult } from "@/lib/selectBest";
+import { trackCreateCuttingDiagram } from "@/lib/analytics";
 import type { PackResult, ShelfRow, SizeChoice, JobMeta } from "@/lib/types";
 
 const SIZE_CHOICES: SizeChoice[] = [
@@ -123,6 +124,11 @@ export default function ItadoriApp() {
   const runCalculation = () => {
     setWarning(null);
     const allParts = buildAllParts(shelfList);
+
+    trackCreateCuttingDiagram({
+      sizeChoice,
+      partCount: allParts.length,
+    });
 
     if (allParts.length === 0) {
       setWarning("切板リストを入力してください。");
