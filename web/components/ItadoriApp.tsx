@@ -9,34 +9,23 @@ import {
   buildAllParts,
 } from "@/lib/trunkTechEngine";
 import { buildPackResult, formatBoardSummary } from "@/lib/packResult";
-import { buildCompareCandidates, isCompareMode } from "@/lib/comparePack";
-import {
-  estimateMaterialCost,
-  pickBestPackResult,
-  strategyFromSizeChoice,
-  strategyLabel,
-} from "@/lib/selectBest";
+import { tryPackCraftsmanAssign } from "@/lib/craftsmanAssign";
+import { tryPackMixed36And48 } from "@/lib/mixedPack";
+import { pickBestPackResult } from "@/lib/selectBest";
 import { trackCreateCuttingDiagram } from "@/lib/analytics";
 import type {
   PackResult,
   ShelfRow,
   SizeChoice,
   JobMeta,
-  MaterialMeta,
 } from "@/lib/types";
 
 const SIZE_CHOICES: SizeChoice[] = [
-  "歩留まり率優先（3×6・4×8比較）",
-  "材料価格優先（3×6・4×8比較）",
-  "端材の使いやすさ優先（3×6・4×8比較）",
+  "効率優先（3×6・4×8混在）",
   "3×6のみ",
   "4×8のみ",
   "フリー板",
 ];
-
-function createEmptyMaterial(): MaterialMeta {
-  return { 材料名称: "", 厚み: "", 単価3x6: "", 単価4x8: "" };
-}
 
 function createEmptyRow(): ShelfRow {
   return { 名称: "", 長さ: 0, 幅: 0, 枚数: 0 };
@@ -70,15 +59,8 @@ export default function ItadoriApp() {
   const [lamL, setLamL] = useState(3600);
   const [kerf, setKerf] = useState(3.0);
   const [sizeChoice, setSizeChoice] = useState<SizeChoice>(
-    "歩留まり率優先（3×6・4×8比較）"
+    "効率優先（3×6・4×8混在）"
   );
-  const [materialMeta, setMaterialMeta] = useState<MaterialMeta>(
-    createEmptyMaterial
-  );
-  const [lastStrategyLabel, setLastStrategyLabel] = useState<string | null>(
-    null
-  );
-  const [lastMaterialCost, setLastMaterialCost] = useState<number | null>(null);
   const [shelfList, setShelfList] = useState<ShelfRow[]>(createDefaultShelf);
   const [result, setResult] = useState<PackResult | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -136,24 +118,6 @@ export default function ItadoriApp() {
     []
   );
 
-  const updateMaterialMeta = useCallback(
-    (field: keyof MaterialMeta, value: string) => {
-      setMaterialMeta((prev) => ({ ...prev, [field]: value }));
-    },
-    []
-  );
-
-  const buildPrintJobMeta = useCallback((): JobMeta => {
-    const meta: JobMeta = { ...jobMeta };
-    if (materialMeta.材料名称) meta.材料名称 = materialMeta.材料名称;
-    if (materialMeta.厚み) meta.厚み = materialMeta.厚み;
-    if (lastStrategyLabel) meta.選定方針 = lastStrategyLabel;
-    if (lastMaterialCost != null && lastMaterialCost > 0) {
-      meta.概算材料費 = lastMaterialCost;
-    }
-    return meta;
-  }, [jobMeta, materialMeta, lastStrategyLabel, lastMaterialCost]);
-
   const addRow = () => setShelfList((prev) => [...prev, createEmptyRow()]);
 
   const removeRow = (index: number) => {
@@ -183,98 +147,43 @@ export default function ItadoriApp() {
     const sLamDim = asLongShort(lamL, lamW, "フリー板");
 
     const nRequested = allParts.length;
-    const strategy = strategyFromSizeChoice(sizeChoice);
+    const simResults: PackResult[] = [];
 
-    if (strategy === "cost") {
-      const p36 = Number(materialMeta.単価3x6);
-      const p48 = Number(materialMeta.単価4x8);
-      if (!(p36 > 0) || !(p48 > 0)) {
-        setWarning(
-          "材料価格優先では、3×6と4×8の単価（円/枚）を入力してください。"
-        );
-        setResult(null);
-        setLastStrategyLabel(null);
-        setLastMaterialCost(null);
-        return;
-      }
-    }
+    const runSingle = (vw: number, vh: number, label: string) => {
+      const sheets = engine.packSheets(allParts, vw, vh, label);
+      simResults.push(
+        buildPackResult(sheets, label, false, vw, vh, nRequested)
+      );
+    };
 
-    let best: PackResult;
-
-    if (isCompareMode(sizeChoice) && strategy) {
-      const simResults = buildCompareCandidates(
+    if (sizeChoice.startsWith("効率優先")) {
+      runSingle(s36Dim[0], s36Dim[1], s36Dim[2]);
+      runSingle(s48Dim[0], s48Dim[1], s48Dim[2]);
+      const mixed = tryPackMixed36And48(
         engine,
         allParts,
         s36Dim,
         s48Dim,
         nRequested
       );
-      const prices =
-        strategy === "cost"
-          ? {
-              price36: Number(materialMeta.単価3x6),
-              price48: Number(materialMeta.単価4x8),
-            }
-          : undefined;
-      best = pickBestPackResult(simResults, nRequested, strategy, prices);
-      setLastStrategyLabel(strategyLabel(strategy));
-      if (strategy === "cost" && prices) {
-        setLastMaterialCost(estimateMaterialCost(best, prices));
-      } else {
-        setLastMaterialCost(null);
-      }
+      if (mixed) simResults.push(mixed);
+      const craftsman = tryPackCraftsmanAssign(
+        engine,
+        allParts,
+        s36Dim,
+        s48Dim,
+        nRequested
+      );
+      if (craftsman) simResults.push(craftsman);
     } else if (sizeChoice === "3×6のみ") {
-      const sheets = engine.packSheets(
-        allParts,
-        s36Dim[0],
-        s36Dim[1],
-        s36Dim[2]
-      );
-      best = buildPackResult(
-        sheets,
-        s36Dim[2],
-        false,
-        s36Dim[0],
-        s36Dim[1],
-        nRequested
-      );
-      setLastStrategyLabel(null);
-      setLastMaterialCost(null);
+      runSingle(s36Dim[0], s36Dim[1], s36Dim[2]);
     } else if (sizeChoice === "4×8のみ") {
-      const sheets = engine.packSheets(
-        allParts,
-        s48Dim[0],
-        s48Dim[1],
-        s48Dim[2]
-      );
-      best = buildPackResult(
-        sheets,
-        s48Dim[2],
-        false,
-        s48Dim[0],
-        s48Dim[1],
-        nRequested
-      );
-      setLastStrategyLabel(null);
-      setLastMaterialCost(null);
+      runSingle(s48Dim[0], s48Dim[1], s48Dim[2]);
     } else {
-      const sheets = engine.packSheets(
-        allParts,
-        sLamDim[0],
-        sLamDim[1],
-        sLamDim[2]
-      );
-      best = buildPackResult(
-        sheets,
-        sLamDim[2],
-        false,
-        sLamDim[0],
-        sLamDim[1],
-        nRequested
-      );
-      setLastStrategyLabel(null);
-      setLastMaterialCost(null);
+      runSingle(sLamDim[0], sLamDim[1], sLamDim[2]);
     }
+
+    const best = pickBestPackResult(simResults, nRequested);
 
     setResult(best);
   };
@@ -338,7 +247,7 @@ export default function ItadoriApp() {
                         aria-expanded={boardSettingsOpen}
                         aria-controls="board-settings-form"
                       >
-                        {boardSettingsOpen ? "閉じる" : "変更"}
+                        {boardSettingsOpen ? "閉じる" : "設定変更"}
                       </button>
                     </div>
                   </th>
@@ -408,71 +317,6 @@ export default function ItadoriApp() {
                             onChange={(e) => setLamL(Number(e.target.value))}
                           />
                         </div>
-                      </div>
-                    )}
-                    {isCompareMode(sizeChoice) && (
-                      <div className="material-meta-fields">
-                        <p className="material-meta-lead">
-                          3×6と4×8の複数案から、選んだ方針で最適な1案を表示します。
-                        </p>
-                        <div className="field">
-                          <label htmlFor="mat-name">材料名称</label>
-                          <input
-                            id="mat-name"
-                            type="text"
-                            placeholder="例：ベニヤ合板"
-                            value={materialMeta.材料名称}
-                            onChange={(e) =>
-                              updateMaterialMeta("材料名称", e.target.value)
-                            }
-                          />
-                        </div>
-                        <div className="field">
-                          <label htmlFor="mat-thick">厚み (mm)</label>
-                          <input
-                            id="mat-thick"
-                            type="number"
-                            min={1}
-                            step={0.1}
-                            placeholder="例：12"
-                            value={materialMeta.厚み}
-                            onChange={(e) =>
-                              updateMaterialMeta("厚み", e.target.value)
-                            }
-                          />
-                        </div>
-                        {sizeChoice.startsWith("材料価格優先") && (
-                          <div className="material-price-fields">
-                            <div className="field">
-                              <label htmlFor="price-36">3×6 単価（円/枚）</label>
-                              <input
-                                id="price-36"
-                                type="number"
-                                min={1}
-                                step={1}
-                                placeholder="仕入れ単価"
-                                value={materialMeta.単価3x6}
-                                onChange={(e) =>
-                                  updateMaterialMeta("単価3x6", e.target.value)
-                                }
-                              />
-                            </div>
-                            <div className="field">
-                              <label htmlFor="price-48">4×8 単価（円/枚）</label>
-                              <input
-                                id="price-48"
-                                type="number"
-                                min={1}
-                                step={1}
-                                placeholder="仕入れ単価"
-                                value={materialMeta.単価4x8}
-                                onChange={(e) =>
-                                  updateMaterialMeta("単価4x8", e.target.value)
-                                }
-                              />
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </td>
@@ -739,18 +583,6 @@ export default function ItadoriApp() {
                 {result.waste_area_mm2 > 0 && (
                   <>（端材 約 {Math.round(result.waste_area_mm2 / 1e6 * 10) / 10} m²）</>
                 )}
-                {lastStrategyLabel && (
-                  <>
-                    <br />
-                    選定方針 <strong>{lastStrategyLabel}</strong>
-                  </>
-                )}
-                {lastMaterialCost != null && lastMaterialCost > 0 && (
-                  <>
-                    <br />
-                    概算材料費 <strong>{lastMaterialCost.toLocaleString()}円</strong>
-                  </>
-                )}
               </div>
               {result.sheets.some((s) => s.merged) && (
                 <div className="alert alert-success" style={{ marginTop: "0.5rem" }}>
@@ -766,7 +598,7 @@ export default function ItadoriApp() {
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => downloadPrintHtml(result, kerf, buildPrintJobMeta())}
+                onClick={() => downloadPrintHtml(result, kerf, jobMeta)}
               >
                 🖨️ 木取図を印刷用にダウンロード（A4）
               </button>
@@ -836,11 +668,8 @@ export default function ItadoriApp() {
                   ：設定変更で使用する材料の寸法に変更できます。
                 </li>
                 <li>
-                  材料の厚みは木取り計算には使いません。厚さごとに計算し、材料名称・厚みは印刷用に記録できます。
-                </li>
-                <li>
-                  <strong>選定方針（3×6・4×8比較）</strong>
-                  ：歩留まり率優先／材料価格優先（単価入力）／端材の使いやすさ優先から選べます。複数の木取り案を試し、選んだ方針に沿った1案を表示します。
+                  <strong>自動選定（効率優先）</strong>
+                  ：3×6・4×8・混在など複数の木取り案を試し、材料の無駄が少ない案を表示します。
                 </li>
                 <li>
                   <strong>ダメ切り・刃物厚</strong>

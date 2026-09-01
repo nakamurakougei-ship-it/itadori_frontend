@@ -171,9 +171,33 @@ body.no-bg {
   margin-bottom: 0.75rem;
 }
 
-.settings-panel {
+.panel.settings-panel {
   padding: 0;
   overflow: hidden;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.settings-panel .form-table {
+  background: transparent;
+}
+
+.settings-panel .form-table-heading,
+.settings-panel .form-table-subheading {
+  background: rgba(245, 245, 245, 0.55);
+}
+
+.settings-panel .board-summary-highlight-row th,
+.settings-panel .board-summary-highlight-row td {
+  background: rgba(255, 244, 214, 0.75);
+}
+
+.settings-panel .material-choice-cell,
+.settings-panel .about-notice-cell {
+  background: transparent;
+}
+
+.settings-panel .material-meta-fields {
+  background: rgba(248, 246, 242, 0.6);
 }
 
 .form-table {
@@ -232,7 +256,7 @@ body.no-bg {
   padding: 1rem 1.25rem;
   margin-top: 0;
   border-top: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.95);
+  background: transparent;
 }
 
 .shelf-panel {
