@@ -79,7 +79,7 @@ function calcLayout(
  * 板ラベルごとに最大面付け数を決める。
  * 3×6（短手 908mm 程度）: 2列×2行 = 4
  * 4×8（短手 1218mm 程度）: 3列×1行 = 3
- * 集成材・その他: 2列×2行
+ * フリー板・その他: 2列×2行
  */
 function maxColsRows(label: string): [number, number] {
   if (label === "4x8") return [3, 1];

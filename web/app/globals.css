@@ -102,23 +102,39 @@ body.no-bg {
   font-weight: 500;
 }
 
-.about-link-row {
-  margin: 0 0 1.5rem;
+.about-notice-cell {
+  text-align: center;
+  background: #fff;
+  padding: 0.65rem 0.5rem;
 }
 
-.about-link {
+.about-notice-link {
   padding: 0;
   border: none;
   background: none;
-  color: #1d4e89;
+  color: #c0392b;
   font-size: 0.95rem;
   font-weight: 700;
   text-decoration: underline;
   cursor: pointer;
 }
 
-.about-link:hover {
-  color: #0f2f54;
+.about-notice-link:hover {
+  color: #922b21;
+}
+
+.page-seo-footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.seo-footer-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #555;
+  line-height: 1.45;
 }
 
 .main-layout {
@@ -747,6 +763,17 @@ input[type="text"] {
   .radio-group-wrap {
     flex-direction: column;
     gap: 0.45rem;
+  }
+
+  .lead-card {
+    background: rgba(255, 255, 255, 0.5);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+
+  .lead-card .lead {
+    margin: 0;
   }
 }
 

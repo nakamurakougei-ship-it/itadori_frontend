@@ -88,7 +88,7 @@ export type SizeChoice =
   | "端材の使いやすさ優先（3×6・4×8比較）"
   | "3×6のみ"
   | "4×8のみ"
-  | "集成材";
+  | "フリー板";
 
 export interface BoardSettings {
   v36: number;

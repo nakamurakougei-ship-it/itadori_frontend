@@ -31,7 +31,7 @@ const SIZE_CHOICES: SizeChoice[] = [
   "端材の使いやすさ優先（3×6・4×8比較）",
   "3×6のみ",
   "4×8のみ",
-  "集成材",
+  "フリー板",
 ];
 
 function createEmptyMaterial(): MaterialMeta {
@@ -180,7 +180,7 @@ export default function ItadoriApp() {
     const engine = new TrunkTechEngine(kerf);
     const s36Dim = asLongShort(v36, h36, "3x6");
     const s48Dim = asLongShort(v48, h48, "4x8");
-    const sLamDim = asLongShort(lamL, lamW, "集成材");
+    const sLamDim = asLongShort(lamL, lamW, "フリー板");
 
     const nRequested = allParts.length;
     const strategy = strategyFromSizeChoice(sizeChoice);
@@ -299,30 +299,16 @@ export default function ItadoriApp() {
         <div className="title-with-badge">
           <h1 className="title-main">
             <span className="title-main-brand">イタドリ</span>
-            <span className="title-main-seo">
-              木取り・板割り計算を自動化する木工専用ツール「イタドリ」
-            </span>
           </h1>
           <span className="powered-badge">Powered by TRAMOYA</span>
         </div>
-        <p className="lead">
-          定尺板から効率よく木取りを行うためのアプリです。
-          <br />
-          あくまで木取りの参考としてご活用ください。
-        </p>
-        <section className="seo-benefits" aria-label="サービスの特徴">
-          <h2>材料のムダと面倒な手計算をゼロにするカット図面自動生成</h2>
-          <h2>インストール・会員登録不要でスマホ・PCからすぐ使える</h2>
-        </section>
-        <p className="about-link-row">
-          <button
-            type="button"
-            className="about-link"
-            onClick={() => setAboutOpen(true)}
-          >
-            ご利用前にご確認ください！
-          </button>
-        </p>
+        <div className="lead-card">
+          <p className="lead">
+            定尺板から効率よく木取りを行うためのアプリです。
+            <br />
+            あくまで木取りの参考としてご活用ください。
+          </p>
+        </div>
       </header>
 
       <div className="main-layout">
@@ -330,6 +316,17 @@ export default function ItadoriApp() {
           <section className="panel settings-panel">
             <table className="form-table">
               <tbody>
+                <tr>
+                  <td colSpan={2} className="about-notice-cell">
+                    <button
+                      type="button"
+                      className="about-notice-link"
+                      onClick={() => setAboutOpen(true)}
+                    >
+                      ★ご利用前にお読みください
+                    </button>
+                  </td>
+                </tr>
                 <tr>
                   <th colSpan={2} className="form-table-heading">
                     <div className="form-table-heading-inner">
@@ -358,6 +355,12 @@ export default function ItadoriApp() {
                     {v48}×{h48}
                   </td>
                 </tr>
+                <tr className="board-summary-highlight-row">
+                  <th>フリー板</th>
+                  <td>
+                    {lamL}×{lamW}
+                  </td>
+                </tr>
                 <tr>
                   <th colSpan={2} className="form-table-subheading">
                     使用材の選択
@@ -379,10 +382,10 @@ export default function ItadoriApp() {
                         </label>
                       ))}
                     </div>
-                    {sizeChoice === "集成材" && (
+                    {sizeChoice === "フリー板" && (
                       <div className="lam-inline">
                         <div className="field">
-                          <label htmlFor="lam-w">集成材 幅 (mm)</label>
+                          <label htmlFor="lam-w">フリー板 幅 (mm)</label>
                           <input
                             id="lam-w"
                             type="number"
@@ -394,7 +397,7 @@ export default function ItadoriApp() {
                           />
                         </div>
                         <div className="field">
-                          <label htmlFor="lam-l">集成材 長さ (mm)</label>
+                          <label htmlFor="lam-l">フリー板 長さ (mm)</label>
                           <input
                             id="lam-l"
                             type="number"
@@ -524,6 +527,29 @@ export default function ItadoriApp() {
                     step={1}
                     value={h48}
                     onChange={(e) => setH48(Number(e.target.value))}
+                  />
+                  <span>mm</span>
+                </div>
+
+                <h3>■ フリー板寸法</h3>
+                <div className="dim-row">
+                  <span>長さ</span>
+                  <input
+                    type="number"
+                    min={3000}
+                    max={4200}
+                    step={1}
+                    value={lamL}
+                    onChange={(e) => setLamL(Number(e.target.value))}
+                  />
+                  <span>mm × 幅</span>
+                  <input
+                    type="number"
+                    min={500}
+                    max={600}
+                    step={1}
+                    value={lamW}
+                    onChange={(e) => setLamW(Number(e.target.value))}
                   />
                   <span>mm</span>
                 </div>
@@ -762,6 +788,16 @@ export default function ItadoriApp() {
           {diagramList}
         </section>
       )}
+
+      <footer className="page-seo-footer" aria-label="サービス概要">
+        <p className="seo-footer-title">
+          木取り・板割り計算を自動化する木工専用ツール「イタドリ」
+        </p>
+        <section className="seo-benefits" aria-label="サービスの特徴">
+          <h2>材料のムダと面倒な手計算をゼロにするカット図面自動生成</h2>
+          <h2>インストール・会員登録不要でスマホ・PCからすぐ使える</h2>
+        </section>
+      </footer>
 
       {aboutOpen && (
         <div
