@@ -154,13 +154,29 @@ function buildPageSvg(
 
   let hy = 6;
   if (job) {
-    const parts = [
+    const line1 = [
       job.作成日 ? `作成日：${escapeHtml(formatDisplayDate(job.作成日))}` : "",
       job.案件名 ? `案件名：${escapeHtml(job.案件名)}` : "",
       job.担当者 ? `担当者：${escapeHtml(job.担当者)}` : "",
-    ].filter(Boolean).join("　　");
-    if (parts) {
-      content += `<text x="${PAGE_W_MM / 2}" y="${hy}" text-anchor="middle" font-size="4.5" fill="#333">${parts}</text>`;
+    ]
+      .filter(Boolean)
+      .join("　　");
+    const line2 = [
+      job.材料名称 ? `材料：${escapeHtml(job.材料名称)}` : "",
+      job.厚み ? `厚み：${escapeHtml(job.厚み)}mm` : "",
+      job.選定方針 ? `選定：${escapeHtml(job.選定方針)}` : "",
+      job.概算材料費 != null && job.概算材料費 > 0
+        ? `概算材料費：${job.概算材料費.toLocaleString()}円`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("　　");
+    if (line1) {
+      content += `<text x="${PAGE_W_MM / 2}" y="${hy}" text-anchor="middle" font-size="4.5" fill="#333">${line1}</text>`;
+      hy += 6;
+    }
+    if (line2) {
+      content += `<text x="${PAGE_W_MM / 2}" y="${hy}" text-anchor="middle" font-size="4" fill="#444">${line2}</text>`;
       hy += 6;
     }
   }

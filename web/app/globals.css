@@ -376,6 +376,53 @@ input[type="text"] {
   margin-bottom: 0;
 }
 
+.material-meta-fields {
+  margin-top: 0.85rem;
+  padding: 0.75rem;
+  background: #f8f6f2;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.material-meta-lead {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: #555;
+  line-height: 1.45;
+}
+
+.material-meta-fields .field {
+  margin-bottom: 0.5rem;
+}
+
+.material-meta-fields .field label {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 0.2rem;
+  color: #444;
+}
+
+.material-meta-fields .field input {
+  width: 100%;
+  max-width: 280px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.material-price-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 480px) {
+  .material-price-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .divider {
   border: none;
   border-top: 1px solid var(--border);

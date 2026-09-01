@@ -42,6 +42,21 @@ export interface JobMeta {
   作成日: string;
   案件名: string;
   担当者: string;
+  /** 印刷用 — 材料名称 */
+  材料名称?: string;
+  /** 印刷用 — 厚み (mm) */
+  厚み?: string;
+  /** 印刷用 — 選定方針 */
+  選定方針?: string;
+  /** 印刷用 — 概算材料費（円） */
+  概算材料費?: number;
+}
+
+export interface MaterialMeta {
+  材料名称: string;
+  厚み: string;
+  単価3x6: string;
+  単価4x8: string;
 }
 
 export interface PackResult {
@@ -68,7 +83,9 @@ export interface ShelfRow {
 }
 
 export type SizeChoice =
-  | "効率優先（3×6・4×8混在）"
+  | "歩留まり率優先（3×6・4×8比較）"
+  | "材料価格優先（3×6・4×8比較）"
+  | "端材の使いやすさ優先（3×6・4×8比較）"
   | "3×6のみ"
   | "4×8のみ"
   | "集成材";
